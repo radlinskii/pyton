@@ -1,3 +1,8 @@
+try:
+    %tensorflow_version 2.x
+except:
+    """ w/e """
+
 from IPython import display
 
 import glob
@@ -9,12 +14,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 # import tensorflow_docs.vis.embed as embed
 import time
-
-try:
-    %tensorflow_version 2.x
-except:
-    # w/e
-
 
 (train_images, _), (test_images, _) = tf.keras.datasets.mnist.load_data()
 
@@ -102,29 +101,61 @@ class CVAE(tf.keras.Model):
         return logits
 
 
-# Define the loss function and the optimizer
-
-optimizer = tf.keras.optimizers.Adam(1e-4)
-
-
-def log_normal_pdf(sample, mean, logvar, raxis=1):
-    log2pi = tf.math.log(2. * np.pi)
-    return tf.reduce_sum(
-        -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
-        axis=raxis)
-
-
-def compute_loss(model, x):
+# Define the loss function
+def compute_loss_v1(model, x):
     mean, logvar = model.encode(x)
     z = model.reparameterize(mean, logvar)
     x_logit = model.decode(z)
+
+    # expected log-likelihood version 1
+
+    X_hat_distribution = tfp.distributions.Bernoulli(logits=x_logit)
+    expected_log_likelihood = tf.reduce_sum(
+        input_tensor=X_hat_distribution.log_prob(x),
+        axis=[1, 2, 3]
+    )
+
+    # expected log-likelihood version 2
+
+    # expected_log_likelihood = -tf.nn.sigmoid_cross_entropy_with_logits(
+    #   labels=x,
+    #   logits=x_logit
+    # )
+    # expected_log_likelihood = tf.reduce_sum(expected_log_likelihood, [1, 2, 3])
+
+
+    stddev = tf.exp(logvar * .5)
+
+    kl = -tf.math.log(stddev) + 0.5 * \
+                (stddev**2 + mean**2) - 0.5
+    kl = tf.reduce_sum(kl, axis=[1])
+
+    elbo_result = tf.reduce_sum(expected_log_likelihood - kl)
+
+    return -elbo_result
+
+
+def compute_loss_v2(model, x):
+    def log_normal_pdf(sample, mean, logvar, raxis=1):
+        log2pi = tf.math.log(2. * np.pi)
+        return tf.reduce_sum(-.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi), axis=raxis)
+
+    mean, logvar = model.encode(x)
+    z = model.reparameterize(mean, logvar)
+    x_logit = model.decode(z)
+
     cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(
         logits=x_logit, labels=x)
+
     logpx_z = -tf.reduce_sum(cross_ent, axis=[1, 2, 3])
     logpz = log_normal_pdf(z, 0., 0.)
     logqz_x = log_normal_pdf(z, mean, logvar)
-    return -tf.reduce_mean(logpx_z + logpz - logqz_x)
 
+    result = -tf.reduce_mean(logpx_z + logpz - logqz_x)
+
+    return result
+
+compute_loss = compute_loss_v1
 
 @tf.function
 def train_step(model, x, optimizer):
@@ -172,6 +203,11 @@ assert batch_size >= num_examples_to_generate
 for test_batch in test_dataset.take(1):
     test_sample = test_batch[0:num_examples_to_generate, :, :, :]
 
+# Define optimizer
+optimizer_v1 = tf.keras.optimizers.Adam(0.001)
+optimizer_v2 = tf.keras.optimizers.Adam(1e-4)
+
+optimizer = optimizer_v1
 
 generate_and_save_images(model, 0, test_sample)
 
