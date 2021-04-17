@@ -12,7 +12,6 @@ import numpy as np
 import PIL
 import tensorflow as tf
 import tensorflow_probability as tfp
-# import tensorflow_docs.vis.embed as embed
 import time
 
 (train_images, _), (test_images, _) = tf.keras.datasets.mnist.load_data()
@@ -233,20 +232,6 @@ def display_image(epoch_no):
 
 plt.imshow(display_image(epoch))
 plt.axis('off')  # Display images
-
-# anim_file = 'cvae.gif'
-
-# with imageio.get_writer(anim_file, mode='I') as writer:
-#   filenames = glob.glob('image*.png')
-#   filenames = sorted(filenames)
-#   for filename in filenames:
-#     image = imageio.imread(filename)
-#     writer.append_data(image)
-#   image = imageio.imread(filename)
-#   writer.append_data(image)
-
-# embed.embed_file(anim_file)
-
 
 def plot_latent_images(model, n, digit_size=28):
     """Plots n x n digit images decoded from the latent space."""
