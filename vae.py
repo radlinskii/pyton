@@ -1,7 +1,7 @@
 try:
     %tensorflow_version 2.x
 except:
-    """ w/e """
+    """ The above is only valid in the Colab environment. """
 
 from IPython import display
 
